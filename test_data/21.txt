@@ -1,0 +1,1 @@
+Mac OS X Mountain Lion installs in place, so you won't need to create a separate disk or run the installation off an external drive.

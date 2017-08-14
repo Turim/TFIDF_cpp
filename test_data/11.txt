@@ -1,0 +1,1 @@
+Cat command is one of the basic commands that you learned when you started in the Unix / Linux world.

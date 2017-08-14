@@ -1,0 +1,1 @@
+However, if the output is piped or redirected, cat is unnecessary.

@@ -1,0 +1,1 @@
+Using cat command, the lines received from stdin can be redirected to a new file using redirection symbols.

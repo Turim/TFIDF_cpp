@@ -1,0 +1,1 @@
+Since Apple moved to using Intel processors in their computers, the OSx86 community has developed and now also allows Mac OS X Tiger and later releases to be installed on non-Apple x86-based computers.

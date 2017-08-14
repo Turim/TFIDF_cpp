@@ -1,3 +1,4 @@
+#include <cassert>
 #include <iostream>
 #include <fstream>
 #include <set>
@@ -143,10 +144,10 @@ namespace file_related
 std::vector<std::vector<std::string>> loadData()
 {
 	std::vector<std::vector<std::string>>  data;
-	for (int i = 1; i != 26; ++i)
+	for (int i = 1; i != 22; ++i)
 	{
 		std::ostringstream ss;
-		ss << "test/" << i << ".txt";
+		ss << "test_data/" << i << ".txt";
 		std::string filename = ss.str();
 		std::string str = file_related::readFileText(filename);
 		std::vector<std::string> wordList = file_related::textParse(str);
@@ -158,6 +159,7 @@ std::vector<std::vector<std::string>> loadData()
 int main()
 {
 	std::vector<std::vector<std::string>> inputData = loadData();
+	assert(!inputData.empty());
 	tfidf ins(inputData);
 	std::vector<std::vector<double>> mat = ins.weightMat;
 }
