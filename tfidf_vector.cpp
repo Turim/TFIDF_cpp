@@ -144,12 +144,14 @@ namespace file_related
 std::vector<std::vector<std::string>> loadData()
 {
 	std::vector<std::vector<std::string>>  data;
-	for (int i = 1; i != 22; ++i)
+	for (int i = 1; i != 50; ++i)
 	{
 		std::ostringstream ss;
 		ss << "test_data/" << i << ".txt";
 		std::string filename = ss.str();
 		std::string str = file_related::readFileText(filename);
+		if (str.empty())
+			break;
 		std::vector<std::string> wordList = file_related::textParse(str);
 		data.push_back(wordList);
 	}
