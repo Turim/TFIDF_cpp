@@ -11,12 +11,15 @@
 #endif
 
 #if 1 // CSV related
-# include "csv.h"
 # include <boost/algorithm/string.hpp>
 # include <boost/lexical_cast.hpp>
 # include <cstring>
 # include <string>
 #endif
+
+#if 1 // vocabulary related
+# include "json/json.h"
+#endif 
 
 #if 1
 # include "opencv2/core.hpp"
@@ -32,9 +35,11 @@
 #ifdef _DEBUG
 # pragma comment(lib, "opencv_core330d.lib")
 # pragma comment(lib, "opencv_ml330d.lib")
+# pragma comment(lib, "jsoncppd.lib")
 #else
 # pragma comment(lib, "opencv_core330.lib")
 # pragma comment(lib, "opencv_ml330.lib")
+# pragma comment(lib, "jsoncpp.lib")
 #endif
 
 using namespace std;
@@ -58,10 +63,18 @@ public:
 	std::vector<std::vector<double>> weightMat; // TF-IDF weighting matrix
 	tfidf(std::vector<std::vector<std::string>> & input):rawDataSet(input)
 	{
-		//calMat();
+#if 0
+		calMat();
+#endif
 	}
 
+	void setVocabList(std::vector<std::string>&& newVocabList)
+	{
+		vocabList = newVocabList;
+	}
+#if 1
 	void calMat();
+#endif
 };
 
 void tfidf::createVocabList()
@@ -334,8 +347,30 @@ try
 
 	Shuffle(inputData, responsesVec);
 
+	// vocabulary
+	vector<string> vocabulary;
+	{
+		fstream vocab("vocabulary.json", ios_base::in);
+		if (!!vocab)
+		{
+			Json::Value root;
+			{
+				Json::Reader jsonReader;
+				jsonReader.parse(vocab, root, false);
+			}
+			for (size_t ix = 0; ix <= 5325; ++ix)
+			{
+				const double weight = root[boost::lexical_cast<string>(ix)]["idf"].asDouble();
+				string word = root[boost::lexical_cast<string>(ix)]["feature"].asString();
+				vocabulary.emplace_back(std::move(word));
+			}
+		}
+	}
+
 	using namespace cv;
+	
 	tfidf data(inputData);
+	data.setVocabList(std::move(vocabulary));
 	data.calMat();
 	vector<vector<double>> trainDataVec(data.weightMat.begin(), data.weightMat.begin() + trainCount);
 	vector<int> trainResponsesVec(responsesVec.begin(), responsesVec.begin() + trainCount);
