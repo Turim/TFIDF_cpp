@@ -23,12 +23,19 @@
 # include "opencv2/ml.hpp"
 #endif 
 
+#include <boost/optional.hpp>
+
 #include <algorithm>
 #include <iterator>
 #include <random>
 
-#pragma comment(lib, "opencv_core330d.lib")
-#pragma comment(lib, "opencv_ml330d.lib")
+#ifdef _DEBUG
+# pragma comment(lib, "opencv_core330d.lib")
+# pragma comment(lib, "opencv_ml330d.lib")
+#else
+# pragma comment(lib, "opencv_core330.lib")
+# pragma comment(lib, "opencv_ml330.lib")
+#endif
 
 using namespace std;
 
@@ -45,14 +52,16 @@ private:
 	inline std::vector<double> bagOfWords2VecMN(const std::vector<std::string> & inputSet);
 	void vec2mat();
 	inline std::vector<double> vec_sum(const std::vector<double>& a, const std::vector<double>& b);
-	void calMat();
+	
 
 public:
 	std::vector<std::vector<double>> weightMat; // TF-IDF weighting matrix
 	tfidf(std::vector<std::vector<std::string>> & input):rawDataSet(input)
 	{
-		calMat();
+		//calMat();
 	}
+
+	void calMat();
 };
 
 void tfidf::createVocabList()
@@ -110,7 +119,8 @@ inline std::vector<double> tfidf::vec_sum(const std::vector<double>& a, const st
 
 void tfidf::calMat()
 {
-	createVocabList();
+	if (vocabList.empty())
+		createVocabList();
 	vec2mat();
 
 	std::vector<std::vector<double>> dataMat2(dataMat);
@@ -142,45 +152,6 @@ void tfidf::calMat()
 	}
 	nrow = weightMat.size();
 	ncol = weightMat[0].size();
-}
-
-namespace file_related
-{
-	std::string readFileText(const std::string & filename)
-	{
-		std::ifstream in(filename);
-		std::string str((std::istreambuf_iterator<char>(in)),
-			            std::istreambuf_iterator<char>());
-		return str;
-	}
-
-	std::vector<std::string> textParse(const std::string & bigString)
-	{
-		std::vector<std::string> vec;
-		boost::tokenizer<> tok(bigString);
-		for(boost::tokenizer<>::iterator beg = tok.begin(); beg != tok.end(); ++ beg)
-		{
-		    vec.push_back(*beg);
-		}
-		return vec;
-	}
-}
-
-std::vector<std::vector<std::string>> loadData()
-{
-	std::vector<std::vector<std::string>>  data;
-	for (int i = 1; i != 50; ++i)
-	{
-		std::ostringstream ss;
-		ss << "test_data/" << i << ".txt";
-		std::string filename = ss.str();
-		std::string str = file_related::readFileText(filename);
-		if (str.empty())
-			break;
-		std::vector<std::string> wordList = file_related::textParse(str);
-		data.push_back(wordList);
-	}
-	return data;
 }
 
 // when , is inside of " then it changes to ^
@@ -244,118 +215,106 @@ void Shuffle(T& vec1, U& vec2)
 	}
 }
 
-int main(int argc, char** argv)
+enum class ClassifierType
 {
+	Unknown = 0,
+	SVM = 1,
+	LR
+};
+
+int main(int argc, char** argv)
+try
+{
+	// Check the input params:
+	if (argc < 2)
+	{
+		cout << "Usage: " << argv[0] << " <classifier_type> [params]" << endl;
+		cout << "\twhere classifier_type = svm | lr" << endl;
+		cout << endl;
+		return 1;
+	}
+
+	int classifierSubtype = -1; // TODO: boost::optional
+	ClassifierType classifierType = ClassifierType::Unknown;
+	if (!strcmp("svm", argv[1]))
+	{
+		classifierType = ClassifierType::SVM;
+		classifierSubtype = cv::ml::SVM::C_SVC;
+		if ((argc >= 3) && (!strcmp("one_class", argv[2])))
+			classifierSubtype = cv::ml::SVM::ONE_CLASS;
+	}
+		
+	else if (!strcmp("lr", argv[1]))
+		classifierType = ClassifierType::LR;
+	else
+		throw std::runtime_error(string("Unknown classifier type: \"") + argv[1] + "\"");
+	
+
+	// Stage I. Load the data
 	std::vector<std::vector<std::string>> inputData;
 	std::vector<vector<int>> responses;
-	if ((argc >= 2) && (!strcmp("--test_csv", argv[1])))
+#if 0
+	io::CSVReader<7, io::trim_chars<'\t', ' '>, io::no_quote_escape<','>, io::throw_on_overflow, io::empty_line_comment> in(argv[2]);
+	in.read_header(io::ignore_extra_column, "url", "enumeration", "file", "text", "title", "url.1", "title_text");
+	string url, enumeration, file, text, title, url1, title_text;
+	while (in.read_row(url, enumeration, file, text, title, url1, title_text))
 	{
-		assert(argc >= 3);
-#if 0
-		io::CSVReader<7, io::trim_chars<'\t', ' '>, io::no_quote_escape<','>, io::throw_on_overflow, io::empty_line_comment> in(argv[2]);
-		in.read_header(io::ignore_extra_column, "url", "enumeration", "file", "text", "title", "url.1", "title_text");
-		string url, enumeration, file, text, title, url1, title_text;
-		while (in.read_row(url, enumeration, file, text, title, url1, title_text))
-		{
-			cout << url << "," << enumeration << "," << file << "," << text << "," << title << "," << url1 << "," << title_text << endl << endl;
-		}
-#endif
-		// TODO: fix the csv parser & use it here.
-		
-		std::ifstream file(argv[2]);
-		assert(!!file);
-		string buff(1000, '\0');
-		while (getline(file, buff))
-		{
-			string value(&buff[0]);
-			// mask ','
-			fold_quoted(value.begin(), value.end());
-			vector<string> subStrings;
-			boost::algorithm::split(subStrings, value, boost::is_any_of(","), boost::token_compress_off);
-			assert(7 == subStrings.size());
-			// unmask ','
-			for_each(subStrings.begin(), subStrings.end(), [](string& val)
-				{
-					unfold_quoted(val.begin(), val.end());
-				}
-			);
-
-			if (argc >= 4)
-			{
-				//  columnId. [0, 6]
-				const size_t columnId = boost::lexical_cast<size_t>(argv[3]);
-				assert(columnId < 7);
-#if 0
-				cout << subStrings[columnId] << endl;
-#else
-				inputData.emplace_back(vector<string>(1, subStrings[columnId]));
-#endif
-			}
-			else
-			{
-				vector<string> current_data;
-				for (size_t ix = 0; ix < 7; ++ix)
-				{
-#if 0
-					cout << subStrings[ix];
-					if (ix != 6)
-					{
-						cout << "|";
-					}
-#else
-					current_data.emplace_back(subStrings[ix]);
-#endif
-				}
-#if 0
-				cout << endl;
-#else
-				inputData.emplace_back(current_data);
-#endif
-			}
-		}
-
-		// load the responses
-		std::ifstream file_responses("mobile_text_classification_data/labels_final.csv");
-		assert(!!file_responses);
-		while (std::getline(file_responses, buff))
-		{
-			string value(&buff[0]);
-			vector<string> subStrings;
-			// mask ','
-			fold_quoted(value.begin(), value.end());
-			boost::algorithm::split(subStrings, value, boost::is_any_of(","), boost::token_compress_off);
-			assert(8 == subStrings.size());
-			vector<int> tempResponse;
-			std::transform(subStrings.begin() + 1, subStrings.end(), back_inserter(tempResponse),
-				[](string& value) -> int
-				{
-					// unmask ','
-					unfold_quoted(value.begin(), value.end());
-					return boost::lexical_cast<int>(value);
-				}
-			);
-			responses.push_back(tempResponse);
-		}
+		cout << url << "," << enumeration << "," << file << "," << text << "," << title << "," << url1 << "," << title_text << endl << endl;
 	}
-	else
+#endif
+	// TODO: fix the csv parser & use it here.
+	const string dataFile		= "mobile_classification_data/data_final.csv";
+	const string responsesFile	= "mobile_classification_data/labels_final.csv";
+	std::ifstream file(dataFile);
+	assert(!!file);
+	string buff(1000, '\0');
+	while (getline(file, buff))
 	{
-		inputData = loadData();
+		string value(&buff[0]);
+		// mask ','
+		fold_quoted(value.begin(), value.end());
+		vector<string> subStrings;
+		boost::algorithm::split(subStrings, value, boost::is_any_of(","), boost::token_compress_off);
+		assert(7 == subStrings.size());
+		// unmask ','
+		for_each(subStrings.begin(), subStrings.end(), [](string& val)
+			{
+				unfold_quoted(val.begin(), val.end());
+			}
+		);
+
+		//  columnId. [0, 6]
+		const size_t columnId = 6;
+		inputData.emplace_back(vector<string>(1, subStrings[columnId]));
+	}
+
+	// load the responses
+	std::ifstream file_responses(responsesFile);
+	assert(!!file_responses);
+	while (std::getline(file_responses, buff))
+	{
+		string value(&buff[0]);
+		vector<string> subStrings;
+		// mask ','
+		fold_quoted(value.begin(), value.end());
+		boost::algorithm::split(subStrings, value, boost::is_any_of(","), boost::token_compress_off);
+		assert(8 == subStrings.size());
+		vector<int> tempResponse;
+		std::transform(subStrings.begin() + 1, subStrings.end(), back_inserter(tempResponse),
+			[](string& value) -> int
+			{
+				// unmask ','
+				unfold_quoted(value.begin(), value.end());
+				return boost::lexical_cast<int>(value);
+			}
+		);
+		responses.push_back(tempResponse);
 	}
 
 	assert(!inputData.empty());
 	assert(inputData.size() == responses.size());
-#if 0
-	tfidf ins(inputData);
-	std::vector<std::vector<double>> mat = ins.weightMat;
-	for (size_t ix = 0, ixMax = mat.size(); ix < ixMax; ++ix)
-	{
-		copy(mat[ix].begin(), mat[ix].end(), ostream_iterator<double>(cout, " "));
-		cout << endl;
-	}
-#endif
 
-
-	// TODO: split into the training samples and the check samples
+	// Stage II. Train the classifier
 	const size_t trainCount = static_cast<size_t>(static_cast<float>(inputData.size()) * 0.7);
 	const size_t testCount = inputData.size() - trainCount;
 	cout << "trainCount = " << trainCount << "; testCount = " << testCount << endl;
@@ -377,16 +336,19 @@ int main(int argc, char** argv)
 
 	using namespace cv;
 	tfidf data(inputData);
+	data.calMat();
 	vector<vector<double>> trainDataVec(data.weightMat.begin(), data.weightMat.begin() + trainCount);
 	vector<int> trainResponsesVec(responsesVec.begin(), responsesVec.begin() + trainCount);
 	const Mat trainDataVecProxy = TfIdfWeights2Mat(trainDataVec);
 	Ptr<ml::TrainData> trainData = ml::TrainData::create(trainDataVecProxy, ml::ROW_SAMPLE, trainResponsesVec);
 	Ptr<ml::SVM> svm = ml::SVM::create();
-	svm->setType(ml::SVM::C_SVC);
+	assert(-1 != classifierSubtype); // TODO: boost::optional
+	svm->setType(classifierSubtype);
 	svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 100, 1e-6)); // 10^-6
 	svm->setKernel(ml::SVM::LINEAR);
 	svm->train(trainData);
 
+	// Stage III. Predict
 	vector<vector<double>> testDataVec(data.weightMat.begin() + trainCount, data.weightMat.end());
 	vector<int> testResponsesVec(responsesVec.begin() + trainCount, responsesVec.end());
 #if 0
@@ -436,4 +398,14 @@ int main(int argc, char** argv)
 	cout << "Recall: " << static_cast<float>(truePositive) / (truePositive + falseNegative) << endl;
 
 	return 0;
+}
+catch (std::exception& e)
+{
+	cout << "Exception has been caught: " << e.what() << endl;
+	return 1;
+}
+catch (...)
+{
+	cout << "Unhandled exception: " << endl;
+	return 1;
 }

@@ -1,3 +1,2 @@
-out_*
-Win32*
-*.dir
+opencv*
+out_cmake*
