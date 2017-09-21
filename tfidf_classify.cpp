@@ -361,6 +361,7 @@ try
 			for (size_t ix = 0; ix <= 5325; ++ix)
 			{
 				const double weight = root[boost::lexical_cast<string>(ix)]["idf"].asDouble();
+				weight;
 				string word = root[boost::lexical_cast<string>(ix)]["feature"].asString();
 				vocabulary.emplace_back(std::move(word));
 			}
