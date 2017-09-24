@@ -29,8 +29,19 @@ endfunction()
 
 
 
-include_directories(../!external/boost)
+include_directories(
+	../!external/boost
+	./opencv/include
+	./jsoncpp/include
+)
+
+link_directories(
+	./opencv/x86/vc14/lib
+	./jsoncpp/lib
+)
+
 add_executable(tfidf_vector tfidf_vector.cpp)
+add_executable(tfidf_classify tfidf_classify.cpp)
 
 get_configuration_runtime_dir(outdir)
 add_custom_target(tfidf_data COMMAND

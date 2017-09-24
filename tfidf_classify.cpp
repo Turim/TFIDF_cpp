@@ -165,6 +165,7 @@ void tfidf::calMat()
 	}
 	nrow = weightMat.size();
 	ncol = weightMat[0].size();
+	cout << "calcMat: nrow = " << nrow << "; ncol = " << ncol << endl;
 }
 
 // when , is inside of " then it changes to ^
@@ -231,7 +232,8 @@ void Shuffle(T& vec1, U& vec2)
 enum class ClassifierType
 {
 	Unknown = 0,
-	SVM = 1,
+	SVM,
+	SVM_NO_TRAIN_1, // VLAD, vocabulary only usage
 	LR
 };
 
@@ -242,21 +244,25 @@ try
 	if (argc < 2)
 	{
 		cout << "Usage: " << argv[0] << " <classifier_type> [params]" << endl;
-		cout << "\twhere classifier_type = svm | lr" << endl;
+		cout << "\twhere classifier_type = svm | svm_vocab | lr" << endl;
 		cout << endl;
 		return 1;
 	}
 
 	int classifierSubtype = -1; // TODO: boost::optional
 	ClassifierType classifierType = ClassifierType::Unknown;
-	if (!strcmp("svm", argv[1]))
+	if (!strcmp("svm", argv[1]) || !strcmp("svm_vocab", argv[1]))
 	{
-		classifierType = ClassifierType::SVM;
+		if (!strcmp("svm", argv[1]))
+			classifierType = ClassifierType::SVM;
+		else if (!strcmp("svm_vocab", argv[1]))
+			classifierType = ClassifierType::SVM_NO_TRAIN_1;
+		else
+			assert(!"Unknown SVC classifier");
 		classifierSubtype = cv::ml::SVM::C_SVC;
 		if ((argc >= 3) && (!strcmp("one_class", argv[2])))
 			classifierSubtype = cv::ml::SVM::ONE_CLASS;
 	}
-		
 	else if (!strcmp("lr", argv[1]))
 		classifierType = ClassifierType::LR;
 	else
@@ -347,31 +353,33 @@ try
 
 	Shuffle(inputData, responsesVec);
 
-	// vocabulary
-	vector<string> vocabulary;
-	{
-		fstream vocab("vocabulary.json", ios_base::in);
-		if (!!vocab)
-		{
-			Json::Value root;
-			{
-				Json::Reader jsonReader;
-				jsonReader.parse(vocab, root, false);
-			}
-			for (size_t ix = 0; ix <= 5325; ++ix)
-			{
-				const double weight = root[boost::lexical_cast<string>(ix)]["idf"].asDouble();
-				weight;
-				string word = root[boost::lexical_cast<string>(ix)]["feature"].asString();
-				vocabulary.emplace_back(std::move(word));
-			}
-		}
-	}
-
 	using namespace cv;
 	
 	tfidf data(inputData);
-	data.setVocabList(std::move(vocabulary));
+	if (ClassifierType::SVM_NO_TRAIN_1 == classifierType)
+	{
+		// vocabulary
+		vector<string> vocabulary;
+		{
+			fstream vocab("vocabulary.json", ios_base::in);
+			if (!!vocab)
+			{
+				Json::Value root;
+				{
+					Json::Reader jsonReader;
+					jsonReader.parse(vocab, root, false);
+				}
+				for (size_t ix = 0; ix <= 5325; ++ix)
+				{
+					const double weight = root[boost::lexical_cast<string>(ix)]["idf"].asDouble();
+					weight;
+					string word = root[boost::lexical_cast<string>(ix)]["feature"].asString();
+					vocabulary.emplace_back(std::move(word));
+				}
+			}
+		}
+		data.setVocabList(std::move(vocabulary));
+	}
 	data.calMat();
 	vector<vector<double>> trainDataVec(data.weightMat.begin(), data.weightMat.begin() + trainCount);
 	vector<int> trainResponsesVec(responsesVec.begin(), responsesVec.begin() + trainCount);
