@@ -340,26 +340,17 @@ try
 	assert(trainCount > 0);
 	assert(testCount > 0);
 
-	vector<int> responsesVec;
-	const size_t ResponseIndex = 1; // class to train
-	transform(responses.begin(), responses.end(), back_inserter(responsesVec),
-		[=](const vector<int>& data) -> int
-		{
-			assert(data.size() == 7);
-			return data[ResponseIndex];
-		}
-	);
-	assert(inputData.size() == responsesVec.size());
-
-	Shuffle(inputData, responsesVec);
-
+	// vocabulary
+	vector<string> vocabulary;
 	using namespace cv;
-	
-	tfidf data(inputData);
+	Ptr<ml::SVM> svm = ml::SVM::create();
+	assert(-1 != classifierSubtype); // TODO: boost::optional
+	svm->setType(classifierSubtype);
+	svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 100, 1e-6)); // 10^-6
+	svm->setKernel(ml::SVM::LINEAR);
+
 	if (ClassifierType::SVM_NO_TRAIN_1 == classifierType)
 	{
-		// vocabulary
-		vector<string> vocabulary;
 		{
 			fstream vocab("vocabulary.json", ios_base::in);
 			if (!!vocab)
@@ -378,25 +369,51 @@ try
 				}
 			}
 		}
-		data.setVocabList(std::move(vocabulary));
 	}
-	data.calMat();
-	vector<vector<double>> trainDataVec(data.weightMat.begin(), data.weightMat.begin() + trainCount);
-	vector<int> trainResponsesVec(responsesVec.begin(), responsesVec.begin() + trainCount);
-	const Mat trainDataVecProxy = TfIdfWeights2Mat(trainDataVec);
-	Ptr<ml::TrainData> trainData = ml::TrainData::create(trainDataVecProxy, ml::ROW_SAMPLE, trainResponsesVec);
-	Ptr<ml::SVM> svm = ml::SVM::create();
-	assert(-1 != classifierSubtype); // TODO: boost::optional
-	svm->setType(classifierSubtype);
-	svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 100, 1e-6)); // 10^-6
-	svm->setKernel(ml::SVM::LINEAR);
-	svm->train(trainData);
+
+	vector<vector<int>> responsesVec;
+	const size_t ClassesToTrain = 2; /* 7 */
+	for (size_t classToTrain = 0; classToTrain < ClassesToTrain; ++classToTrain)
+	{
+		vector<int> responsesVecProxy;
+		transform(responses.begin(), responses.end(), back_inserter(responsesVecProxy),
+			[=](const vector<int>& data) -> int
+			{
+				assert(data.size() == 7);
+				return data[classToTrain] == 0 ? 0 : (classToTrain+1);
+			}
+		);
+		assert(inputData.size() == responsesVecProxy.size());
+		responsesVec.emplace_back(responsesVecProxy);
+
+		assert(responsesVec.size() > classToTrain);
+
+		// train 'em all!!
+		Shuffle(inputData, responsesVec[classToTrain]);
+		tfidf data(inputData);
+		if (!vocabulary.empty()) // 
+			data.setVocabList(std::move(vocabulary));
+		data.calMat();
+		vector<vector<double>> trainDataVec(data.weightMat.begin(), data.weightMat.begin() + trainCount);
+		vector<int> trainResponsesVec(responsesVec[classToTrain].begin(), responsesVec[classToTrain].begin() + trainCount);
+		const Mat trainDataVecProxy = TfIdfWeights2Mat(trainDataVec);
+		Ptr<ml::TrainData> trainData = ml::TrainData::create(trainDataVecProxy, ml::ROW_SAMPLE, trainResponsesVec);
+		svm->train(trainData);
+	}
 
 	// Stage III. Predict
+	tfidf data(inputData);
+	if (!vocabulary.empty()) // 
+		data.setVocabList(std::move(vocabulary));
+	data.calMat();
 	vector<vector<double>> testDataVec(data.weightMat.begin() + trainCount, data.weightMat.end());
-	vector<int> testResponsesVec(responsesVec.begin() + trainCount, responsesVec.end());
+	std::default_random_engine generator(time(NULL));
+	assert(ClassesToTrain > 0);
+	std::uniform_int_distribution<uint32_t> distribution(0, ClassesToTrain-1);
+	std::vector<uint32_t>::size_type r = distribution(generator);
+	vector<int> testResponsesVec(responsesVec[r].begin() + trainCount, responsesVec[r].end());
 #if 0
-	vector<int> realResponsesVec(testResponsesVec.size(), 0);
+	vector<int> realResponsesVec(testResponsesVec[r].size(), 0);
 #else
 	Mat realResponsesVec(static_cast<int>(testResponsesVec.size()), 1, CV_32FC1);
 #endif
@@ -408,9 +425,11 @@ try
 	size_t truePositive = 0, falsePositive = 0, trueNegative = 0, falseNegative = 0;
 	for (size_t ix = 0, ixMax = testResponsesVec.size(); ix < ixMax; ++ix)
 	{
-		if (testResponsesVec[ix] == static_cast<int>(realResponsesVec.at<float>(ix)))
+		const int assumedResponse = testResponsesVec[ix] * (r+1);
+		const int realResponse = static_cast<int>(realResponsesVec.at<float>(ix));
+		if (assumedResponse == realResponse)
 		{
-			if (0 == testResponsesVec[ix])
+			if (0 == assumedResponse)
 			{
 				++trueNegative;
 			}
@@ -424,8 +443,8 @@ try
 		}
 		else
 		{
-			cout << "FAIL (" << testResponsesVec[ix] << " against " << static_cast<int>(realResponsesVec.at<float>(ix)) << ")" << endl;
-			if (static_cast<int>(realResponsesVec.at<float>(ix)) == 0)
+			cout << "FAIL (" << assumedResponse << " against " << realResponse << ")" << endl;
+			if (realResponse == 0)
 			{
 				++falseNegative;
 			}
