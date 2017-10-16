@@ -140,7 +140,7 @@ void tfidf::calMat()
 		row_vec.clear();
 	}
 	nrow = weightMat.size();
-	ncol = weightMat[0].size();
+	ncol = weightMat[0].size();	
 }
 
 namespace file_related
