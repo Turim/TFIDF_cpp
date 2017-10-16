@@ -1,1 +1,0 @@
-A common interactive use of cat for a single file is to output the content of a file to standard output.

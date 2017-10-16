@@ -1,1 +1,0 @@
-cat with one named file is safer where human error is a concern - one wrong use of the default redirection symbol ">" instead of "<" (often adjacent on keyboards) may permanently delete the file you were just needing to read.

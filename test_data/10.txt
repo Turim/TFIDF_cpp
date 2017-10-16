@@ -1,1 +1,0 @@
-In terms of legibility, a sequence of commands starting with cat and connected by pipes has a clear left-to-right flow of information.
