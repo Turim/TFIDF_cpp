@@ -10,7 +10,6 @@
 #include <vector>
 
 class tfidf {
-private:
 	std::vector<std::vector<double>> dataMat; // converted bag of words matrix
 	unsigned int nrow; // matrix row number
 	unsigned int ncol; // matrix column number
@@ -37,6 +36,38 @@ public:
 		: rawDataSet(input), vocabList(vocabList)
 	{
 		calMat();
+	}
+
+public:
+	// debugging purposes:
+	std::vector<std::vector<double>> const& dbgGetDataMat() const
+	{
+		return dataMat;
+	}
+	
+	unsigned int dbgGetRowNumber() const
+	{
+		return nrow;
+	}
+
+	unsigned int dbgGetColNumber() const
+	{
+		return ncol;
+	}
+
+	std::vector<std::vector<std::string> > const& dbgGetRawDataSet() const
+	{
+		return rawDataSet;
+	}
+
+	std::vector<std::string> const& dbgGetVocabList() const
+	{
+		return vocabList;
+	}
+
+	std::vector<int> const& dbgGetNumOfTerms() const
+	{
+		return numOfTerms;
 	}
 };
 
