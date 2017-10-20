@@ -28,12 +28,12 @@ private:
 
 public:
 	std::vector<std::vector<double>> weightMat; // TF-IDF weighting matrix
-	tfidf(std::vector<std::vector<std::string>> & input) :rawDataSet(input)
+	tfidf(const std::vector<std::vector<std::string>> & input) :rawDataSet(input)
 	{
 		calMat();
 	}
 
-	tfidf(std::vector<std::vector<std::string>> & input, const std::vector<std::string>& vocabList)
+	tfidf(const std::vector<std::vector<std::string>> & input, const std::vector<std::string>& vocabList)
 		: rawDataSet(input), vocabList(vocabList)
 	{
 		calMat();
